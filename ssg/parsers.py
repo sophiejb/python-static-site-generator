@@ -13,7 +13,7 @@ class Parser:
     def parse(self, path: Path, source: Path, dest: Path):
         raise NotImplementedError
 
-    def read(path):
+    def read(self, path):
         with open(path, "r") as file:
             return file.read()
 
@@ -30,4 +30,4 @@ class ResourceParser:
     extensions: [".jpg", ".png", ".gif", ".css", ".html"]
 
     def parse(self, path, source, dest):
-        self.copy(path, source, dest)                  
+        self.copy(path, source, dest)
