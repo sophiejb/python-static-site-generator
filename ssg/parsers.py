@@ -1,32 +1,62 @@
+import shutil
+import sys
+
+from typing import List
 from pathlib import Path
 
+from docutils.core import publish_parts
+from markdown import markdown
+from ssg.content import Content
 
-class Site:
-    def __init__(self, source, dest, parsers=None):
-        self.source = Path(source)
-        self.dest = Path(dest)
-        self.parsers = parsers or []
 
-    def create_dir(self, path):
-        directory = self.dest / path.relative_to(self.source)
-        directory.mkdir(parents=True, exist_ok=True)
+class Parser:
+    extensions: List[str] = []
 
-    def load_parser(self, extension):
-        for parser in self.parsers:
-            if parser.valid_extension(extension):
-                return parser
+    def valid_extension(self, extension):
+        return extension in self.extensions
 
-    def run_parser(self, path):
-        parser = self.load_parser(path.suffix)
-        if parser is not None:
-            parser.parse(path, self.source, self.dest)
-        else:
-            print("Not Implemented")
+    def parse(self, path: Path, source: Path, dest: Path):
+        raise NotImplementedError
 
-    def build(self):
-        self.dest.mkdir(parents=True, exist_ok=True)
-        for path in self.source.rglob("*"):
-            if path.is_dir():
-                self.create_dir(path)
-            elif path.is_file():
-                self.run_parser(path)
+    def read(self, path):
+        with open(path, "r") as file:
+            return file.read()
+
+    def write(self, path, dest, content, ext=".html"):
+        full_path = dest / path.with_suffix(ext).name
+        with open(full_path, "w") as file:
+            file.write(content)
+
+    def copy(self, path, source, dest):
+        shutil.copy2(path, dest / path.relative_to(source))
+
+
+class ResourceParser(Parser):
+    extensions = [".jpg", ".png", ".gif", ".css", ".html"]
+
+    def parse(self, path, source, dest):
+        self.copy(path, source, dest)
+
+
+class MarkdownParser(Parser):
+    extensions = [".md", ".markdown"]
+
+    def parse(self, path, source, dest):
+        content = Content.load(self.read(path))
+        html = markdown(content.body)
+        self.write(path, dest, html)
+        sys.stdout.write(
+            "\x1b[1;32m{} converted to HTML. Metadata: {}\n".format(path.name, content)
+        )
+
+
+class ReStructuredTextParser(Parser):
+    extensions = [".rst"]
+
+    def parse(self, path, source, dest):
+        content = Content.load(self.read(path))
+        html = publish_parts(content.body, writer_name="html5")
+        self.write(path, dest, html["html_body"])
+        sys.stdout.write(
+            "\x1b[1;32m{} converted to HTML. Metadata: {}\n".format(path.name, content)
+        )
